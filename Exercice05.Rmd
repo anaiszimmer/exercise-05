@@ -1,0 +1,138 @@
+---
+title: "Exercice05"
+author: "Anais"
+date: "2/22/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Challenge 1
+
+* Loading data
+
+```{r, echo=FALSE, warning=FALSE, include=FALSE}
+
+library(tidyverse)
+
+f<-"https://raw.githubusercontent.com/difiore/ada-2022-datasets/main/IMDB-movies.csv"
+d <- read_csv(f, col_names = TRUE)
+```
+
+```{r, echo=FALSE, warning=FALSE, include=TRUE}
+head(d)
+
+```
+
+* Use a one-line statement to filter the dataset to include just movies from 1920 to 1979 and movies that are between 1 and 3 hours long (runtimeMinutes >= 60 and runtimeMinutes <= 180), and add a new column that codes the startYear into a new variable, decade (“20s,” “30s,” …“70s”). If you do this correctly, there should be 5651 movies remaining in the dataset.
+
+```{r, echo=FALSE, warning=FALSE, include=TRUE}
+#filter and mutate
+
+#d$startYear<-as.numeric(d$startYear)
+
+library(dplyr)
+
+d<-filter(d, startYear %in% 1920:1979,runtimeMinutes %in% 60:180)%>%
+  mutate(decade=case_when(
+  startYear %in% 1920:1930 ~ "20s",
+  startYear %in% 1930:1940 ~ "30s",
+  startYear %in% 1940:1950 ~ "40s",
+  startYear %in% 1950:1960 ~ "50s",
+  startYear %in% 1960:1970 ~ "60s",
+  startYear %in% 1970:1980 ~ "70s"))
+  
+#view(d)
+
+#does not work - cannot figure out why
+#d%<>%filter(d, startYear %in% 1920:1979, runtimeMinutes %in% 60:180)%<>%mutate(decade=case_when(
+#  startYear %in% 1920:1930 ~ "20s",
+#  startYear %in% 1930:1940 ~ "30s",
+#  startYear %in% 1940:1950 ~ "40s",
+#  startYear %in% 1950:1960 ~ "50s",
+#  startYear %in% 1960:1970 ~ "60s",
+#  startYear %in% 1970:1980 ~ "70s"))
+  
+head(d)
+count(d)
+
+```
+
+* Use {ggplot2} (which is part of {tidyverse}) to plot histograms of the distribution of runtimeMinutes for each decade.
+
+```{r, echo=FALSE, warning=FALSE, include=TRUE}
+
+ggplot(d, aes(x=runtimeMinutes))+
+  geom_histogram(colour="black", fill="white",binwidth=1)+
+  facet_wrap(~ decade, ncol=3)+
+  theme_bw(base_size = 10)+
+  labs(title="Distribution of runtimeMinutes for each decade")
+
+
+```
+
+* Use a one-line statement to calculate the population mean and population standard deviation in runtimeMinutes for each decade and save the results in a new dataframe called results.
+
+```{r, echo=FALSE, warning=FALSE, include=TRUE}
+
+d%>%select(runtimeMinutes, decade)%>%
+  group_by(decade)%>%
+  summarise_each(funs(mean, sd))->results
+
+head(results)
+
+```
+
+* Draw a single sample of 100 movies, without replacement, from each decade and calculate the single sample mean and single sample standard deviation in runtimeMinutes for each decades. Recall that your single sample mean for each decade is an estimate of the population mean for each decade.
+
+```{r, echo=FALSE, warning=FALSE, include=TRUE}
+
+n <- 100
+d %>%select(runtimeMinutes, decade)%>%
+  group_by(decade)%>%
+  sample_n(size=n, replace=FALSE)%>%
+  summarise_each(funs(mean, sd))->sample_results
+
+head(sample_results)
+
+```
+
+* Calculate for each decade the standard error around your estimate of the population mean runtimeMinutes based on the standard deviation and sample size (n=100 movies) of your single sample.
+*Compare these estimates to the actual population mean runtimeMinutes for each decade and to the calculated SE in the population mean for samples of size 100 based on the population standard deviation for each decade.
+
+``````{r, echo=FALSE, warning=FALSE, include=TRUE}
+#standard error (se) is the standard deviation (sd) of a sample population.
+
+sample_results<-sample_results%>%mutate(se=sd/sqrt(n))### NOT VERY SURE OF THIS
+
+head(sample_results)
+head(results)
+```
+* Generate a sampling distribution of mean runtimeMinutes for each decade by [a] drawing 1000 samples of 100 movies from each decade and, for each sample, [b] calculating the mean runtimeMinutes and the standard deviation in runtimeMinutes for each decade. Use either the do(reps) * formulation from {mosaic}, the rerun() function from {purrr}, or the rep_sample_n() workflow from {infer} to generate your these sampling distributions (see Module 12).
+
+``````{r, echo=FALSE, warning=FALSE, include=TRUE}
+
+
+#[a] drawing 1000 samples of 100 movies from each decade - sampling distribution
+
+# using the {mosaic} package
+reps <- 1000
+n<-100
+by_decade<-d%>%group_by(decade)
+samp_dist_mean <- mosaic::do(reps) * mean(~ runtimeMinutes, data=sample_n(by_decade, size = n, replace = FALSE))  # generates a sampling distribution
+
+head(samp_dist_mean) ## DOES NOT WORK
+
+#[b] calculating the mean runtimeMinutes and the standard deviation in runtimeMinutes for each decade.
+
+# Standard error
+se_mean <- mosaic::favstats(~ mean, data=samp_dist_mean)$sd #!!!!!!!!!!!!!!!!!!!!!
+head(se_mean)
+
+
+
+
+
+```
