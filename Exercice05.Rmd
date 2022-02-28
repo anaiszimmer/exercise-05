@@ -81,6 +81,7 @@ d%>%select(runtimeMinutes, decade)%>%
   group_by(decade)%>%
   summarise_each(funs(mean, sd))->results
 
+str(results)
 head(results)
 
 ```
@@ -100,39 +101,485 @@ head(sample_results)
 ```
 
 * Calculate for each decade the standard error around your estimate of the population mean runtimeMinutes based on the standard deviation and sample size (n=100 movies) of your single sample.
-*Compare these estimates to the actual population mean runtimeMinutes for each decade and to the calculated SE in the population mean for samples of size 100 based on the population standard deviation for each decade.
+
 
 ``````{r, echo=FALSE, warning=FALSE, include=TRUE}
 #standard error (se) is the standard deviation (sd) of a sample population.
 
-sample_results<-sample_results%>%mutate(se=sd/sqrt(n))### NOT VERY SURE OF THIS
+sample_results<-sample_results%>%mutate(se=sd/sqrt(n))### NOT VERY SURE OF THIS, LOOKS IT WORKED
 
+```
+
+* Compare these estimates to the actual population mean runtimeMinutes for each decade and to the calculated SE in the population mean for samples of size 100 based on the population standard deviation for each decade.
+
+``````{r, echo=FALSE, warning=FALSE, include=TRUE}
+#Comparing the estimates (sample-results) to the actual population (results)
 head(sample_results)
 head(results)
+
+# The mean and sd of the sample estimates are different than the actual means and sd of the real populations
+
 ```
 * Generate a sampling distribution of mean runtimeMinutes for each decade by [a] drawing 1000 samples of 100 movies from each decade and, for each sample, [b] calculating the mean runtimeMinutes and the standard deviation in runtimeMinutes for each decade. Use either the do(reps) * formulation from {mosaic}, the rerun() function from {purrr}, or the rep_sample_n() workflow from {infer} to generate your these sampling distributions (see Module 12).
 
 ``````{r, echo=FALSE, warning=FALSE, include=TRUE}
 
 
-#[a] drawing 1000 samples of 100 movies from each decade - sampling distribution
-
-# using the {mosaic} package
 reps <- 1000
 n<-100
-by_decade<-d%>%group_by(decade)
-samp_dist_mean <- mosaic::do(reps) * mean(~ runtimeMinutes, data=sample_n(by_decade, size = n, replace = FALSE))  # generates a sampling distribution
 
-head(samp_dist_mean) ## DOES NOT WORK
-
-#[b] calculating the mean runtimeMinutes and the standard deviation in runtimeMinutes for each decade.
-
-# Standard error
-se_mean <- mosaic::favstats(~ mean, data=samp_dist_mean)$sd #!!!!!!!!!!!!!!!!!!!!!
-head(se_mean)
+# using the {mosaic} package - !!! DOES NOR WORK - ERROR MESSAGE !!!
+#samp_dist_mean<- d%>%group_by(decade)%>%
+  #mosaic::do(reps) * mean(~ runtimeMinutes, data=sample_n(size = n, replace = FALSE))  # generates a sampling distribution
+#samp_dist_mean<-as.data.frame(samp_dist_mean)
+#head(samp_dist_mean) 
 
 
+samp_dist_mean<-{
+  mosaic::do(reps)*sample_n(d,n,replace=FALSE)}%>%#drawing 1000 samples of 100 movies 
+  group_by(decade, .index)%>%#from each decade 
+  summarize(mean=mean(runtimeMinutes),sd=sd(runtimeMinutes))
 
+head(samp_dist_mean)
+#view(samp_dist_mean)
+#str(samp_dist_mean)
+
+#FROM
+#s<-{do(reps)*sample_n(d,n,replace=FALSE)}%>%
+  #group_by(decade, .index%>%
+             #summarize)
+```
+
+* Then, calculate the MEAN and the STANDARD DEVIATION of the sampling distribution of sample means for each decade (the former should be a very good estimate of the population mean, while the latter is another estimate of the standard error in our estimate of the population mean for a particular sample size) and plot a histogram of the sampling distribution for each decade. What shape does it have?
+
+
+``````{r, echo=FALSE, warning=FALSE, include=TRUE}
+
+samp_dist_mean %>%select(mean, decade)%>%group_by(decade)%>%
+    summarize(mean=mean(mean),sd=sd(mean))->sample_dist_results
+
+  #summarise_each(funs(mean, sd))->sample_dist_results
+
+head(sample_dist_results) #!!!! PROBLEM: sd = NA !!!!!!!!!!!
+
+ggplot(samp_dist_mean, aes(x=mean))+
+  geom_histogram(colour="black", fill="white",binwidth=1)+
+  facet_wrap(~ decade, ncol=3)+
+  theme_bw(base_size = 10)+
+  labs(title="Histogram of the sampling distribution for each decade")
 
 
 ```
+
+All histograms have a bell shape, and looks to follow a normal distribution, except for the 20s.
+
+* Finally, compare the standard error in runtimeMinutes for samples of size 100 from each decade [1] as estimated from your first sample of 100 movies, [2] as calculated from the known population standard deviations for each decade, and [3] as estimated from the sampling distribution of sample means for each decade.
+
+
+
+``````{r, echo=FALSE, warning=FALSE, include=TRUE}
+
+
+#standard error in runtimeMinutes for samples of size 100 from each decade
+#[1] as estimated from your first sample of 100 movies = sample_results
+head(sample_results)
+
+#[2] as calculated from the known population standard deviations for each decade = results
+head(results)
+
+#[3] as estimated from the sampling distribution of sample means for each decade = sample_dist_results
+head(sample_dist_results)
+
+```
+
+## Challenge 2
+
+* Using the {tidyverse} read_csv() function, load the “zombies.csv” dataset from this URL as a “tibble” named z. 
+
+``````{r, echo=FALSE, warning=FALSE, include=TRUE}
+
+file<-"https://raw.githubusercontent.com/difiore/ada-2022-datasets/main/zombies.csv"
+z <- read_csv(file, col_names = TRUE)
+str(z)
+#view(z)
+```
+
+* Calculate the population mean and standard deviation for each quantitative random variable in the dataset (height, weight, age, number of zombies killed, and years of education).
+
+```{r, echo=FALSE, warning=FALSE, include=TRUE}
+
+z%>%select(height, weight, zombies_killed, years_of_education, age)%>%
+  summarise_each(funs(mean, sd))->zpop_stat
+head(zpop_stat)
+
+
+```
+* Use {ggplot} and make boxplots of each of these variables by gender.
+```{r, echo=FALSE, warning=FALSE, include=TRUE}
+library(ggpubr)
+library(gridExtra)
+
+bp_height<-ggplot(z, aes(x=gender,y =height, color=gender))+
+ geom_boxplot(aes(fill=gender), alpha=0.4)+
+  theme_bw(base_size = 8)+
+  labs(x='',y='Height (cm?)',title="Zombies Height by gender")
+bp_height2<-bp_height+theme(legend.position = "none")
+
+bp_weight<-ggplot(z, aes(x=gender,y =weight, color=gender))+
+ geom_boxplot(aes(fill=gender), alpha=0.4)+
+  theme_bw(base_size = 8)+
+  labs(x='',y='Weight (Kg?)',title="Zombies Weight by gender")
+bp_weight2<-bp_weight+theme(legend.position = "none")
+
+bp_zkilled<-ggplot(z, aes(x=gender,y =zombies_killed, color=gender))+
+ geom_boxplot(aes(fill=gender), alpha=0.4)+
+  theme_bw(base_size = 8)+
+  labs(x='',y='# of Zombies killed',title="Zombies killed by gender")
+bp_zkilled2<-bp_zkilled+theme(legend.position = "none")
+
+bp_yearsEdu<-ggplot(z, aes(x=gender,y =years_of_education, color=gender))+
+ geom_boxplot(aes(fill=gender), alpha=0.4)+
+  theme_bw(base_size = 8)+
+  labs(x='',y='Years',title="Years of education by gender")
+bp_yearsEdu2<-bp_yearsEdu+theme(legend.position = "none")
+
+bp_age<-ggplot(z, aes(x=gender,y =age, color=gender))+
+ geom_boxplot(aes(fill=gender), alpha=0.4)+
+  theme_bw(base_size = 8)+
+  labs(x='',y='Age',title="Zombies Age by gender")
+bp_age2<-bp_age+theme(legend.position = "none")
+
+gridExtra::grid.arrange (bp_height2,bp_weight2,bp_zkilled2,bp_yearsEdu2,bp_age2, ncol=3)
+
+
+#get one gender legend for all graphs
+#get_legend<-function(bp_height){
+#  tmp <- ggplot_gtable(ggplot_build(bp_height))
+#   leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+#  legend <- tmp$grobs[[leg]]
+#  return(legend)
+#}
+
+#legend<-get_legend(bp_height)
+
+#gridExtra::grid.arrange (bp_height2,bp_weight2,bp_zkilled2,bp_yearsEdu2,bp_age2,legend, ncol=3)
+
+
+```
+
+
+* Use {ggplot} and make scatterplots of height and weight in relation to age (i.e., use age as the x variable), using different colored points for males versus females. Do these variables seem to be related? In what way?
+
+
+```{r, echo=FALSE, warning=FALSE, include=FALSE}
+
+height_age<-ggplot(z, aes(x =age, y =height, color=gender)) + 
+  geom_point(aes(color=gender), size=1)+
+  theme(legend.position = "none")+
+  labs(title="Height~age",x="Age (years)",y="Height (cm)")
+height_age
+
+weight_age<-ggplot(z, aes(x =age, y =weight, color=gender)) + 
+  geom_point(aes(color=gender), size=1)+
+  theme(legend.position = "none")+
+  labs(title="Weight~age",x="Age (years)",y="Weight (kg)")
+weight_age
+```
+```{r, echo=FALSE, warning=FALSE, include=TRUE}
+gridExtra::grid.arrange (height_age,weight_age, ncol=2)
+
+```
+
+For both variable height and weight seem to be correlated to age, with the height increasing as age increases, and weight increases as age increases.
+
+
+* Using histograms and Q-Q plots, check whether each of the quantitative variables seem to be drawn from a normal distribution. Which seem to be and which do not?
+
+```{r, echo=FALSE, warning=FALSE, include=TRUE}
+
+d_age<-ggplot(z, aes(x=age))+
+  geom_histogram(colour="black", fill="white",binwidth=1)+
+  theme_bw(base_size = 8)+
+  labs(title="Distribution of the variable Age")
+
+
+d_height<-ggplot(z, aes(x=height))+
+  geom_histogram(colour="black", fill="white",binwidth=1)+
+  theme_bw(base_size = 8)+
+  labs(title="Distribution of the variableHeight")
+
+
+d_weight<-ggplot(z, aes(x=weight))+
+  geom_histogram(colour="black", fill="white",binwidth=1)+
+  theme_bw(base_size = 8)+
+  labs(title="Distribution of the variable weight")
+
+
+
+d_zombies_killed<-ggplot(z, aes(x=zombies_killed))+
+  geom_histogram(colour="black", fill="white",binwidth=1)+
+  theme_bw(base_size = 8)+
+  labs(title="Distribution of the variable zombies_killed")
+
+d_years_of_education<-ggplot(z, aes(x=years_of_education))+
+  geom_histogram(colour="black", fill="white",binwidth=1)+
+  theme_bw(base_size = 8)+
+  labs(title="Distribution of the variable years_of_education")
+
+
+gridExtra::grid.arrange (d_age,d_height, d_weight, d_zombies_killed,d_years_of_education)
+
+
+
+qqnorm(z$age, main = "QQ Plot - Age")
+qqline(z$age, col = "gray")
+
+qqnorm(z$height, main = "QQ Plot - Height")
+qqline(z$height, col = "gray")
+
+qqnorm(z$weight, main = "QQ Plot - Weight")
+qqline(z$weight, col = "gray")
+
+
+qqnorm(z$zombies_killed, main = "QQ Plot - zombies_killed")
+qqline(z$zombies_killed, col = "gray")
+
+qqnorm(z$years_of_education, main = "QQ Plot - years_of_education")
+qqline(z$years_of_education, col = "gray")
+
+
+```
+
+
+According the histograms and Q-Q plots the variables age, height are weight seem to follow a normal distribution.
+Whereas the variable years of education and zombies killed seem to be drawn from a Poisson distibution.
+Weight does not look like to follow a normal distribution
+
+
+
+
+
+* Now use the sample_n() function from {dplyr} to sample ONE subset of 50 zombie apocalypse survivors (without replacement) from this population and calculate the mean and sample standard deviation for each variable. Also estimate the standard error for each variable based on this one sample and use that to construct the theoretical 95% confidence interval for each mean. You can use either the standard normal or a Student’s t distribution to derive the critical values needed to calculate the lower and upper limits of the CI.
+
+
+```{r, echo=FALSE, warning=FALSE, include=TRUE}
+
+n=50
+set.seed(1)
+sample<-sample_n(z,n, replace=FALSE)
+
+sample_sd_mean<-sample%>%select(height, weight, zombies_killed, years_of_education, age)%>%
+  summarise_each(funs(mean, sd))
+
+head(sample_sd_mean)
+
+#variable with normal distribution  
+se_age=sd(sample$age)/sqrt(length(sample$age))
+se_height=sd(sample$height)/sqrt(length(sample$height))
+se_weight=sd(sample$weight)/sqrt(length(sample$weight))
+
+#variable with Poisson? distribution
+se_Zkilled=sqrt(mean(sample$zombies_killed)/length(sample$zombies_killed))
+se_Yedu=sqrt(mean(sample$years_of_education)/length(sample$years_of_education))
+
+
+#trying previously with function but could not make it work
+#normal_var<-vars(age, height,weight)
+#poisson_var<-vars(zombies_killed, years_of_education)
+
+#se_norm<-function(x){
+#  sd(x)/sqrt(length(x))
+#  return(se_norm)
+#}
+
+#se_poiss<-function(x){
+#  sqrt(mean(x)/length(x)) #se=sqrt(lambda/n) with lambda=mean(x)
+#       return(se_poiss)
+#}
+
+#sample_se1<-sample%>%select(age, height,weight)%>%  ###DOES NOT WORK
+ # summarize_each(funs(se_norm))
+
+#sample_se1<-sample%>%select(age, height,weight)%>%
+  #summarize(se_age=se_norm(age),se_height=se_norm(height), se_weight=se_norm(weight))
+  
+
+## THIS IS WRONG TOO
+#sample_se_normV<-sample%>%select(age, height,weight)%>%
+#  mutate(se_age=sd(age)/sqrt(length(age)))%>%
+#  mutate(se_height=sd(height)/sqrt(length(height)))%>%
+#  mutate(se_weight=sd(weight)/sqrt(length(weight)))
+
+#head(sample_se_normV)
+#view(sample_se_normV)
+
+#sample_se_poissV<-sample%>%select(zombies_killed, years_of_education)%>%
+#  mutate(se_Zkilled=sqrt(mean(zombies_killed)/length(zombies_killed)))%>%
+#  mutate(se_Yedu=sqrt(mean(years_of_education)/length(years_of_education)))
+
+
+#---------------------------------------------------------------------------
+
+#construct the theoretical 95% confidence interval for each mean
+# CI around the mean
+
+#using a standard normal distribution with ci <- m + c(-1, 1) * qnorm(1 - alpha / 2) * se)
+
+percent_ci <- 95
+alpha <- 1 - percent_ci/100
+
+ci_age <- mean(sample$age) + c(-1, 1) * qnorm(1 - alpha / 2) * se_age
+ci_height <- mean(sample$height) + c(-1, 1) * qnorm(1 - alpha / 2) * se_height
+ci_weight <- mean(sample$weight) + c(-1, 1) * qnorm(1 - alpha / 2) * se_weight
+
+ci_Zkilled <- mean(sample$zombies_killed) + c(-1, 1) * qnorm(1 - alpha / 2) * se_Zkilled
+ci_Yedu <- mean(sample$years_of_education) + c(-1, 1) * qnorm(1 - alpha / 2) * se_Yedu
+
+```
+
+* Then draw another 199 random samples of 50 zombie apocalypse survivors out and calculate the mean for each of the these samples. Together with the first sample you drew out, you now have a set of 100 means for each variable (each based on 50 observations), which constitutes a sampling distribution for each variable. What are the means and standard deviations of the sampling distribution for each variable?
+
+
+```{r, echo=FALSE, warning=FALSE, include=TRUE}
+
+
+reps<-99
+n<50
+sample_99<-{
+  mosaic::do(reps)*sample_n(z,n,replace=FALSE)}#drawing 99 samples of 20
+head(sample_99)
+#view(sample_99)
+ 
+
+sample_ok<-sample%>%select(id,height, weight, zombies_killed, years_of_education, age)%>%
+  mutate(.index=100)
+sample_99ok<-sample_99%>%select(id,height, weight, zombies_killed, years_of_education, age,.index)
+all_samples<-rbind(sample_99ok,sample_ok)
+  
+
+head(all_samples)
+view(all_samples)
+
+allsamp_dist_mean<-all_samples%>%
+  group_by( .index)%>%
+ # select(height, weight, zombies_killed, years_of_education, age,.index)%>%
+  summarise_at(c("height", "weight", "zombies_killed", "years_of_education", "age"),mean)
+
+head(allsamp_dist_mean)
+view(allsamp_dist_mean)
+
+#other option that works too
+#allsamp_dist_mean<-all_samples%>%
+#  group_by( .index)%>%
+#  summarise_all(mean)
+
+
+#means and standard deviations of the sampling distribution for each variable
+MEAN_allsamp_dist<-allsamp_dist_mean%>%select(height, weight, zombies_killed, years_of_education, age)%>%
+  summarise_each(funs(mean, sd))
+print("Means and standard deviations of the sampling distribution for each variable")
+head(MEAN_allsamp_dist)
+
+
+```
+
+* Finally, construct a 95% confidence interval for each mean directly from the sampling distribution of sample means using the central 95% that distribution (i.e., by setting the lower and upper CI bounds to 2.5% and 97.5% of the way through that distribution).
+
+```{r, echo=FALSE, warning=FALSE, include=TRUE}
+
+
+CI_height<- MEAN_allsamp_dist$height_mean+c(qnorm(0.025),qnorm(0.975)*MEAN_allsamp_dist$height_sd)
+CI_weight<- MEAN_allsamp_dist$weight_mean+c(qnorm(0.025),qnorm(0.975)*MEAN_allsamp_dist$weight_sd)
+CI_Zkilled<- MEAN_allsamp_dist$zombies_killed_mean+c(qnorm(0.025),qnorm(0.975)*MEAN_allsamp_dist$zombies_killed_sd)
+CI_Yedu<- MEAN_allsamp_dist$years_of_education_mean+c(qnorm(0.025),qnorm(0.975)*MEAN_allsamp_dist$years_of_education_sd)
+CI_age<- MEAN_allsamp_dist$age_mean+c(qnorm(0.025),qnorm(0.975)*MEAN_allsamp_dist$age_sd)
+
+
+```
+
+* How do the standard deviations of the sampling distribution for each variable compare to the standard errors estimated from your first sample of size 50? 
+
+
+The standard deviations of the sampling distribution should be very close to the standard errors estimated. 
+Here there are similar, but still slighlty differents.
+
+```{r, echo=FALSE, warning=FALSE, include=TRUE}
+
+head(MEAN_allsamp_dist)
+
+head(sample_sd_mean)
+
+#table for se for first sample
+
+se_first_Sample=c(se_height, se_weight, se_Zkilled, se_Yedu,se_age)
+variables=c('se_height', 'se_weight', 'se_Zkilled', 'se_Yedu','se_age')
+
+sd_allSamples=c(MEAN_allsamp_dist$height_sd,MEAN_allsamp_dist$weight_sd,MEAN_allsamp_dist$zombies_killed_sd,
+                MEAN_allsamp_dist$years_of_education_sd,MEAN_allsamp_dist$age_sd)
+
+SE<-data.frame(variables,se_first_Sample,sd_allSamples)
+print(SE)
+
+```
+
+
+* What do sampling distributions for each variable mean look like? Are they normally distributed? What about for those variables that you concluded were not originally drawn from a normal distribution? How do the two 95% CIs you estimated compare to one another (i.e., the CI based on one sample and the corresponding sample standard deviation versus the CI based on simulation where you created a sampling distribution across 200 samples)?
+
+
+```{r, echo=FALSE, warning=FALSE, include=TRUE}
+
+sdist_age<-ggplot(allsamp_dist_mean, aes(x=age))+
+  geom_histogram(colour="black", fill="white",binwidth=1)+
+  theme_bw(base_size = 8)+
+  labs(title="Sampling Distribution of mean Age")
+
+
+sdist_height<-ggplot(allsamp_dist_mean, aes(x=height))+
+  geom_histogram(colour="black", fill="white",binwidth=1)+
+  theme_bw(base_size = 8)+
+  labs(title="Sampling Distribution of mean Height")
+
+
+sdist_weight<-ggplot(allsamp_dist_mean, aes(x=weight))+
+  geom_histogram(colour="black", fill="white",binwidth=1)+
+  theme_bw(base_size = 8)+
+  labs(title="Sampling Distribution of mean weight")
+
+
+
+sdist_zombies_killed<-ggplot(allsamp_dist_mean, aes(x=zombies_killed))+
+  geom_histogram(colour="black", fill="white",binwidth=1)+
+  theme_bw(base_size = 8)+
+  labs(title="Sampling Distribution of mean zombies_killed")
+
+sdist_years_of_education<-ggplot(allsamp_dist_mean, aes(x=years_of_education))+
+  geom_histogram(colour="black", fill="white",binwidth=1)+
+  theme_bw(base_size = 8)+
+  labs(title="Sampling Distribution of mean years_of_education")
+
+
+gridExtra::grid.arrange (sdist_age,sdist_height, sdist_weight, sdist_zombies_killed,sdist_years_of_education)
+
+
+
+
+
+qqnorm(allsamp_dist_mean$age, main = "QQ Plot - Age")
+qqline(allsamp_dist_mean$age, col = "gray")
+
+qqnorm(allsamp_dist_mean$height, main = "QQ Plot - Height")
+qqline(allsamp_dist_mean$height, col = "gray")
+
+qqnorm(allsamp_dist_mean$weight, main = "QQ Plot - Weight")
+qqline(allsamp_dist_mean$weight, col = "gray")
+
+
+qqnorm(allsamp_dist_mean$zombies_killed, main = "QQ Plot - zombies_killed")
+qqline(allsamp_dist_mean$zombies_killed, col = "gray")
+
+qqnorm(allsamp_dist_mean$years_of_education, main = "QQ Plot - years_of_education")
+qqline(allsamp_dist_mean$years_of_education, col = "gray")
+
+```
+
+Now all variables looks kind of normally distributed, even Years od education and Zombies killed.
