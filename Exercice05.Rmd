@@ -466,7 +466,7 @@ allsamp_dist_mean<-all_samples%>%
   summarise_at(c("height", "weight", "zombies_killed", "years_of_education", "age"),mean)
 
 head(allsamp_dist_mean)
-view(allsamp_dist_mean)
+#view(allsamp_dist_mean)
 
 #other option that works too
 #allsamp_dist_mean<-all_samples%>%
